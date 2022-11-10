@@ -3,6 +3,7 @@ package org.daniel107x.kafka.consumers;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.CooperativeStickyAssignor;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -13,15 +14,15 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Properties;
 
-public class ConsumerDemoInConsumerGroup {
-    private static final Logger logger = LoggerFactory.getLogger(ConsumerDemoInConsumerGroup.class);
+public class ConsumerDemoCooperative {
+    private static final Logger logger = LoggerFactory.getLogger(ConsumerDemoCooperative.class);
 
     public static void main(String[] args) {
         logger.info("I'm a kafka consumer!");
 
         // Create consumer properties
         String bootstrapServer = "127.0.0.1:9092";
-        String groupId = "my-fourth-app";
+        String groupId = "my-third-app";
         String topic = "demo_java";
 
         Properties properties =new Properties();
@@ -31,6 +32,8 @@ public class ConsumerDemoInConsumerGroup {
 
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest"); // none/earliest/latest
+        properties.setProperty(ConsumerConfig.PARTITION_ASSIGNMENT_STRATEGY_CONFIG, CooperativeStickyAssignor.class.getName()); //Force cooperative assignment
+//        properties.setProperty(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, "")
 
         // Create consumer
         KafkaConsumer<String, String> consumer = new KafkaConsumer<>(properties);
