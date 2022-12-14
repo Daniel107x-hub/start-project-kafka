@@ -60,6 +60,9 @@ public class OpenSearchConsumer {
                 logger.info("Received: " + recordCount + " records" );
                 for(ConsumerRecord<String, String> record : records){
                     //Send records into OpenSearch
+                    /*
+                    The consumer is not idempotent because we are not sending the IDs to OpenSearch
+                     */
                     try {
                         IndexRequest indexRequest = new IndexRequest(index)
                                 .source(record.value(), XContentType.JSON);
