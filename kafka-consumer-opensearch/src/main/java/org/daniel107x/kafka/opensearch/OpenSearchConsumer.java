@@ -1,5 +1,8 @@
 package org.daniel107x.kafka.opensearch;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.apache.http.HttpHost;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.UsernamePasswordCredentials;
@@ -11,6 +14,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.RequestOptions;
@@ -58,19 +63,47 @@ public class OpenSearchConsumer {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofMillis(3000));
                 int recordCount = records.count();
                 logger.info("Received: " + recordCount + " records" );
+
+                //Sending data using bulk requests
+                BulkRequest bulkRequest = new BulkRequest();
+
+
                 for(ConsumerRecord<String, String> record : records){
                     //Send records into OpenSearch
                     /*
-                    The consumer is not idempotent because we are not sending the IDs to OpenSearch
+                    The consumer is not idempotent because we are not sending the IDs to OpenSearch, so we need
+                    to add them
                      */
+
+                    // Strategy 1 - Creating IDs using kafka coordinates
+                    String id = record.topic() + "-" + record.partition() + "-" + record.offset();
+
                     try {
+                        // A better strategy would be to use the id contained in the data itself
+                        id = extractId(record.value());
                         IndexRequest indexRequest = new IndexRequest(index)
-                                .source(record.value(), XContentType.JSON);
-                        IndexResponse response = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
-                        logger.info(response.getId());
+                                .source(record.value(), XContentType.JSON)
+                                .id(id);
+                        bulkRequest.add(indexRequest);
+//                        IndexResponse response = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
+//                        logger.info(response.getId());
                     }catch(Exception e){
                         e.printStackTrace();
                     }
+                }
+
+                if(bulkRequest.numberOfActions() > 0) {
+                    BulkResponse response = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+                    logger.info("Inserted: " + response.getItems().length + " records");
+                    try{
+                        Thread.sleep(1000);
+                    }catch(InterruptedException e){
+                        e.printStackTrace();
+                    }
+
+                    // Consume offsets manually after the batch is consumed
+                    consumer.commitSync();
+                    logger.info("Offsets have been committed");
                 }
             }
         }
@@ -81,6 +114,14 @@ public class OpenSearchConsumer {
 //        restHighLevelClient.close();
     }
 
+    private static String extractId(String jsonString){
+        return JsonParser.parseString(jsonString).getAsJsonObject()
+                .get("meta")
+                .getAsJsonObject()
+                .get("id")
+                .getAsString();
+    }
+
     private static KafkaConsumer<String, String> createKafkaConsumer(){
         Properties properties =new Properties();
         properties.setProperty(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServer);
@@ -88,6 +129,7 @@ public class OpenSearchConsumer {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false"); //Manually commit offsets
         return new KafkaConsumer<>(properties);
     }
 
