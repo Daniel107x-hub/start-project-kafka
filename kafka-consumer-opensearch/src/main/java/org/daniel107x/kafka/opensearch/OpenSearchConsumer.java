@@ -30,14 +30,13 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Properties;
 
 public class OpenSearchConsumer {
     private static final String connectionString = "http://localhost:9200";
     private static final String bootstrapServer = "127.0.0.1:9092";
-    private static final String groupId = "consmer-opensearch-demo";
+    private static final String groupId = "consumer-opensearch-demo";
     private static final String index = "wikimedia";
     private static final String topic = "wikimedia.recentchange";
 
